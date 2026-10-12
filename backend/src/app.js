@@ -10,6 +10,7 @@ function createApp() {
   app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
   app.use('/api/auth', require('./routes/auth'));
   app.use('/api/hostels', require('./routes/hostels'));
+  app.use('/api/applications', require('./routes/applications'));
 
   app.use((req, res) => res.status(404).json({ message: 'Route not found' }));
   return app;
