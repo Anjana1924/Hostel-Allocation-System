@@ -12,6 +12,7 @@ function createApp() {
   app.use('/api/hostels', require('./routes/hostels'));
   app.use('/api/applications', require('./routes/applications'));
   app.use('/api/allocations', require('./routes/allocations'));
+  app.use('/api/admin', require('./routes/admin'));
 
   app.use((req, res) => res.status(404).json({ message: 'Route not found' }));
   return app;
