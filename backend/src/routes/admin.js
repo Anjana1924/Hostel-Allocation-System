@@ -5,6 +5,9 @@ const admin = require('../controllers/adminController');
 
 router.use(auth, role('admin'));
 
+router.get('/hostels/:id/rooms', admin.hostelRooms);
+router.get('/students/unallocated', admin.unallocatedStudents);
+
 router.get('/applications', admin.listApplications);
 router.post('/allocate', admin.runAllocation);
 

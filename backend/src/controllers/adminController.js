@@ -1,6 +1,9 @@
 const Application = require('../models/Application');
 const Allocation = require('../models/Allocation');
 const Setting = require('../models/Setting');
+const Bed = require('../models/Bed');
+const Hostel = require('../models/Hostel');
+const User = require('../models/User');
 const { allocateAll, allocateManually, vacate, HttpError } = require('../services/allocationService');
 
 function sendError(res, err) {
@@ -92,6 +95,67 @@ exports.updateSettings = async (req, res) => {
     await Setting.current(); 
     const settings = await Setting.findOneAndUpdate({ key: 'main' }, update, { new: true });
     res.json({ settings });
+  } catch (err) {
+    sendError(res, err);
+  }
+};
+
+
+
+exports.hostelRooms = async (req, res) => {
+  try {
+    const hostel = await Hostel.findById(req.params.id);
+    if (!hostel) return res.status(404).json({ message: 'Hostel not found' });
+
+    const floor = Number(req.query.floor) || 1;
+    const beds = await Bed.find({ hostel: hostel._id, floor })
+      .sort({ roomNo: 1, bedNo: 1 })
+      .lean();
+
+    const allocations = await Allocation.find({
+      bed: { $in: beds.map((b) => b._id) },
+      status: 'active',
+    })
+      .populate('student', 'name regNo')
+      .lean();
+    const byBed = new Map(allocations.map((a) => [String(a.bed), a]));
+
+    const rooms = new Map();
+    for (const bed of beds) {
+      if (!rooms.has(bed.roomNo)) rooms.set(bed.roomNo, { roomNo: bed.roomNo, beds: [] });
+      const alloc = byBed.get(String(bed._id));
+      rooms.get(bed.roomNo).beds.push({
+        _id: bed._id,
+        bedNo: bed.bedNo,
+        status: bed.status,
+        allocationId: alloc ? alloc._id : null,
+        student: alloc ? alloc.student : null,
+      });
+    }
+
+    res.json({
+      hostel: { _id: hostel._id, name: hostel.name, genderType: hostel.genderType },
+      floor,
+      rooms: [...rooms.values()],
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+};
+
+
+exports.unallocatedStudents = async (req, res) => {
+  try {
+    const { academicYear } = await Setting.current();
+    const taken = await Allocation.find({ academicYear, status: 'active' }).distinct('student');
+
+    const filter = { role: 'student', _id: { $nin: taken } };
+    if (['male', 'female'].includes(req.query.gender)) filter.gender = req.query.gender;
+
+    const students = await User.find(filter)
+      .select('name regNo gender year department')
+      .sort({ name: 1 });
+    res.json({ students });
   } catch (err) {
     sendError(res, err);
   }
