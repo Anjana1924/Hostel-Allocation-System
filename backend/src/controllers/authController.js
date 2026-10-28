@@ -31,7 +31,7 @@ exports.register = async (req, res) => {
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    // Public registration always creates a student; admins are created by the seed script
+
     const user = await User.create({
       name,
       email,
@@ -73,4 +73,42 @@ exports.login = async (req, res) => {
 
 exports.me = (req, res) => {
   res.json({ user: req.user.toSafeObject() });
+};
+
+
+exports.updateProfile = async (req, res) => {
+  try {
+    const name = String(req.body.name || '').trim();
+    if (name.length < 2) {
+      return res.status(400).json({ message: 'Name must be at least 2 characters' });
+    }
+    req.user.name = name;
+    await req.user.save();
+    res.json({ user: req.user.toSafeObject() });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+
+exports.changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Current and new password are required' });
+    }
+    if (String(newPassword).length < 6) {
+      return res.status(400).json({ message: 'New password must be at least 6 characters' });
+    }
+    const ok = await bcrypt.compare(currentPassword, req.user.passwordHash);
+    if (!ok) return res.status(401).json({ message: 'Current password is incorrect' });
+
+    req.user.passwordHash = await bcrypt.hash(newPassword, 10);
+    await req.user.save();
+    res.json({ message: 'Password updated' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
 };

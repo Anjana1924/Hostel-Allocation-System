@@ -160,3 +160,92 @@ exports.unallocatedStudents = async (req, res) => {
     sendError(res, err);
   }
 };
+
+
+exports.exportAllocations = async (req, res) => {
+  try {
+    const { academicYear } = await Setting.current();
+    const rows = await Allocation.find({ academicYear, status: 'active' })
+      .populate('student', 'name regNo gender year department')
+      .populate('hostel', 'name')
+      .populate('bed', 'floor roomNo bedNo')
+      .lean();
+
+   
+    const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const lines = [
+      ['Name', 'Reg No', 'Gender', 'Year', 'Department', 'Hostel', 'Floor', 'Room', 'Bed']
+        .map(cell)
+        .join(','),
+    ];
+    for (const r of rows) {
+      lines.push(
+        [
+          r.student?.name, r.student?.regNo, r.student?.gender, r.student?.year,
+          r.student?.department, r.hostel?.name, r.bed?.floor, r.bed?.roomNo, r.bed?.bedNo,
+        ]
+          .map(cell)
+          .join(',')
+      );
+    }
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="allocations-${academicYear.replace('/', '-')}.csv"`
+    );
+    res.send(lines.join('\n'));
+  } catch (err) {
+    sendError(res, err);
+  }
+};
+
+
+
+exports.summaryReport = async (req, res) => {
+  try {
+    const { academicYear } = await Setting.current();
+
+    const [beds, applicationRows, byDepartment, totalStudents, housed] = await Promise.all([
+      Bed.aggregate([
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 },
+            occupied: { $sum: { $cond: [{ $eq: ['$status', 'occupied'] }, 1, 0] } },
+          },
+        },
+      ]),
+      Application.aggregate([
+        { $match: { academicYear } },
+        { $group: { _id: '$status', count: { $sum: 1 } } },
+      ]),
+      
+      Allocation.aggregate([
+        { $match: { academicYear, status: 'active' } },
+        { $lookup: { from: 'users', localField: 'student', foreignField: '_id', as: 'student' } },
+        { $unwind: '$student' },
+        { $group: { _id: '$student.department', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+      ]),
+      User.countDocuments({ role: 'student' }),
+      Allocation.countDocuments({ academicYear, status: 'active' }),
+    ]);
+
+    const applications = { pending: 0, approved: 0, waitlisted: 0, cancelled: 0 };
+    for (const r of applicationRows) applications[r._id] = r.count;
+
+    const total = beds[0]?.total || 0;
+    const occupied = beds[0]?.occupied || 0;
+
+    res.json({
+      academicYear,
+      beds: { total, occupied, available: total - occupied },
+      students: { total: totalStudents, housed, withoutBed: totalStudents - housed },
+      applications,
+      byDepartment: byDepartment.map((d) => ({ department: d._id, count: d.count })),
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+};
