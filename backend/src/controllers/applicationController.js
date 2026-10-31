@@ -82,6 +82,42 @@ exports.myApplication = async (req, res) => {
   }
 };
 
+// UPDATE: change hostel / floor preference while the application is still pending or waitlisted
+exports.update = async (req, res) => {
+  try {
+    const settings = await Setting.current();
+    const application = await Application.findOne({
+      student: req.user._id,
+      academicYear: settings.academicYear,
+    });
+    if (!application || application.status === 'cancelled') {
+      return res.status(404).json({ message: 'No application to update' });
+    }
+    if (application.status === 'approved') {
+      return res.status(400).json({ message: 'Already allocated, so preferences can no longer be changed' });
+    }
+
+    const { preferredHostel, preferredFloor } = req.body;
+    if (preferredHostel && !hostelsForGender(req.user.gender).includes(preferredHostel)) {
+      return res
+        .status(400)
+        .json({ message: `Hostel ${preferredHostel} is not available for your gender` });
+    }
+    const floor = preferredFloor ? Number(preferredFloor) : undefined;
+    if (floor !== undefined && (!Number.isInteger(floor) || floor < 1 || floor > 4)) {
+      return res.status(400).json({ message: 'Floor must be between 1 and 4' });
+    }
+
+    application.preferredHostel = preferredHostel || undefined;
+    application.preferredFloor = floor;
+    await application.save();
+    res.json({ application });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 // Withdraw an application that has not been approved yet
 exports.cancel = async (req, res) => {
   try {
