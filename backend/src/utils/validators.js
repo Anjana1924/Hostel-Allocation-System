@@ -10,7 +10,7 @@ function validateRegistration(body) {
   if (!['male', 'female'].includes(gender)) {
     return 'Gender must be male or female';
   }
-  if (String(password).length < 6) {
+  if (String(password).length < 5) {
     return 'Password must be at least 6 characters';
   }
   const yearNum = Number(year);
