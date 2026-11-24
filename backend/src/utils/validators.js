@@ -7,6 +7,9 @@ function validateRegistration(body) {
   if (!name || !email || !password || !regNo || !gender || !department) {
     return 'All fields are required';
   }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email))) {
+    return 'Enter a valid email address';
+  }
   if (!['male', 'female'].includes(gender)) {
     return 'Gender must be male or female';
   }

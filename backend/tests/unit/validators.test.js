@@ -70,3 +70,14 @@ describe('Rule order (decision table behaviour)', () => {
     assert.equal(validateRegistration({ ...valid, password: '1', year: 9 }), 'Password must be at least 6 characters'));
   test('a fully valid record returns null', () => assert.equal(validateRegistration(valid), null));
 });
+
+
+describe('Email format (BUG-01)', () => {
+  for (const [email, ok] of [['abc', false], ['a@b', false], ['a b@c.com', false], ['kasun@university.edu', true]]) {
+    test(`email "${email}" is ${ok ? 'accepted' : 'rejected'}`, () => {
+      const result = validateRegistration(withField('email', email));
+      if (ok) assert.equal(result, null);
+      else assert.equal(result, 'Enter a valid email address');
+    });
+  }
+});
