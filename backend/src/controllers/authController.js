@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { validateRegistration } = require('../utils/validators');
 
 const signToken = (user) =>
   jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
@@ -9,19 +10,11 @@ exports.register = async (req, res) => {
   try {
     const { name, email, password, regNo, gender, year, department } = req.body;
 
-    if (!name || !email || !password || !regNo || !gender || !department) {
-      return res.status(400).json({ message: 'All fields are required' });
-    }
-    if (!['male', 'female'].includes(gender)) {
-      return res.status(400).json({ message: 'Gender must be male or female' });
-    }
-    if (String(password).length < 6) {
-      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+        const validationError = validateRegistration(req.body);
+    if (validationError) {
+      return res.status(400).json({ message: validationError });
     }
     const yearNum = Number(year);
-    if (!Number.isInteger(yearNum) || yearNum < 1 || yearNum > 4) {
-      return res.status(400).json({ message: 'Year must be between 1 and 4' });
-    }
 
     const exists = await User.findOne({
       $or: [{ email: String(email).toLowerCase().trim() }, { regNo: String(regNo).trim() }],
